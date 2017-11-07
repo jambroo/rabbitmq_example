@@ -1,0 +1,10 @@
+{
+  "name": "rabbitmq_brush_up",
+  "version": "1.0.0",
+  "main": "server.js",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "^0.5.1",
+    "express": "^4.16.2"
+  }
+}
