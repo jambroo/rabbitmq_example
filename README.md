@@ -2,7 +2,7 @@
 
 ## Intro
 
-Proof-of-concept RabbitMQ queue. Messages can be queues and are popped off and displayed.
+This is an example of a nodejs express app interacting with a rabbitmq service. Messages can be queued and are can also be popped off and displayed.
 
 ## View Last Message
 
