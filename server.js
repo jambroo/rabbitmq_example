@@ -1,42 +1,66 @@
 'use strict';
 
 const express = require('express');
-const amqp = require('amqplib/callback_api');
+const amqp = require('amqplib');
+const bodyParser = require('body-parser')
 
 const PORT = 8080;
 const HOST = '0.0.0.0';
+const RABBIT_HOST = 'rabbit';
+const NO_MESSAGES = 'NO_MESSAGES';
+const QUEUE_NAME = 'test';
 
 const app = express();
+const open = amqp.connect(`amqp://${RABBIT_HOST}`);
+
+app.use(bodyParser());
+
 app.get('/', (req, res) => {
-  amqp.connect('amqp://rabbit', function(err, conn) {
-    conn.createChannel(function(err, ch) {
-      var q = 'hello';
+  open.then((conn) => {
+    return conn.createChannel();
+  }).then(function(ch) {
+    let q = 'test';
 
-      ch.assertQueue(q, {durable: false});
+    return ch.assertQueue(QUEUE_NAME).then(function(ok) {
+      if (ok.messageCount == 0) {
+        return NO_MESSAGES;
+      }
 
-      ch.consume(q, function(msg) {
-        let incoming = msg.content.toString();
-        console.log(" [x] Received %s", incoming);
-        res.send(`Incoming message: ${incoming}.`);
-      }, {noAck: true});
-
-      setTimeout(function() { conn.close(); }, 1000);
+      return ch.get(QUEUE_NAME, (msg) => {
+        if (msg !== null) {
+          ch.ack(msg);
+        }
+      });
     });
-  });
+  }).then((msg) => {
+    if (msg === NO_MESSAGES) {
+      res.send({ message: "No messages. Waiting..." });
+    } else {
+      res.send({ message: `Message received: ${msg.content.toString()}` });
+    }
+  }).catch(console.warn);
 });
 
-app.get('/send', (req, res) => {
-  amqp.connect('amqp://rabbit', function(err, conn) {
-    conn.createChannel(function(err, ch) {
-      var q = 'hello';
+app.post('/send', (req, res) => {
+  let msg = req.body.message;
+  if (!msg) {
+    res.send({ message: "Please provide message in POST parameter." });
+    return;
+  }
 
-      ch.assertQueue(q, {durable: false});
-      ch.sendToQueue(q, new Buffer('Hello World!'));
+  open.then(function(conn) {
+    return conn.createChannel();
+  }).then(function(ch) {
+    return ch.assertQueue(QUEUE_NAME).then(function(ok) {
+      let result = ch.sendToQueue(QUEUE_NAME, new Buffer(msg))
 
-      setTimeout(function() { conn.close(); res.send("Sent message!\n"); }, 500);
+      res.send((result) ? { message: "Message Sent." } : { message: "An error has occurred while sending message." });
+
+      return result;
     });
-  });
-})
+  }).catch(console.warn);
+});
 
 app.listen(PORT, HOST);
+
 console.log(`Running on http://${HOST}:${PORT}`);
